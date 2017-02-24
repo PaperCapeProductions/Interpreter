@@ -9,7 +9,8 @@ public class Interpreter {
   int pc;
   Token currentToken;
   HashMap<String, Integer> symbols;
-
+  int temp;
+  boolean isLoop = false;
   
   public Interpreter(String filename) throws Exception {
     
@@ -135,52 +136,147 @@ public class Interpreter {
   }
   
   
-  public int evalConditional() throws Exception {
-    // An expression consists of at least one arithmetic expression,
-    // possibly joined to a second by a relational operator
-    int value = this.evalExpression();
-    
-    // Add additional cases for the other relational operators
-    if (this.currentToken.type == TokenType.LESS_THAN ||
-        this.currentToken.type == TokenType.GREATER_THAN) {
-      
-      if (this.currentToken.type == TokenType.LESS_THAN) {
-        this.consume(TokenType.LESS_THAN);
-        int lhs = value;
-        int rhs = this.evalExpression();
-        if (lhs < rhs) {
-          return 1;
-        } else {
-          return 0; 
-        }
-      }
-      
-      else if (this.currentToken.type == TokenType.GREATER_THAN) {
-        this.consume(TokenType.GREATER_THAN);
-        int lhs = value;
-        int rhs = this.evalExpression();
-        if (lhs > rhs) {
-          return 1;
-        } else {
-          return 0; 
-        }
-      }
-    }
-    
-    return value;
+	public int evalConditional() throws Exception {
+		// An expression consists of at least one arithmetic expression,
+		// possibly joined to a second by a relational operator
+		int value = this.evalExpression();
+		if (this.currentToken.type == TokenType.COLON) {
+			this.consume(TokenType.COLON);
+		}
+		// Add additional cases for the other relational operators
+		if (this.currentToken.type == TokenType.LESS_THAN || this.currentToken.type == TokenType.GREATER_THAN) {
+
+			if (this.currentToken.type == TokenType.LESS_THAN) {
+				this.consume(TokenType.LESS_THAN);
+				int lhs = value;
+				int rhs = this.evalExpression();
+				if (this.currentToken.type != TokenType.COLON) {
+					throw new Exception("Missing colon from Conditional Statment.");
+				}
+				this.consume(TokenType.COLON);
+
+				if (lhs < rhs) {
+					return 1;
+				} else {
+					return 0;
+				}
+			}
+
+			else if (this.currentToken.type == TokenType.GREATER_THAN) {
+				this.consume(TokenType.GREATER_THAN);
+				int lhs = value;
+				int rhs = this.evalExpression();
+				if (this.currentToken.type != TokenType.COLON) {
+					throw new Exception("Missing colon from Conditional Statment.");
+				}
+				this.consume(TokenType.COLON);
+
+				if (lhs > rhs) {
+					return 1;
+				} else {
+					return 0;
+				}
+			}
+		}
+
+		if (this.currentToken.type == TokenType.LESS_THAN_OR_EQUAL
+				|| this.currentToken.type == TokenType.GREATER_THAN_OR_EQUAL) {
+
+			if (this.currentToken.type == TokenType.LESS_THAN_OR_EQUAL) {
+				this.consume(TokenType.LESS_THAN_OR_EQUAL);
+				int lhs = value;
+				int rhs = this.evalExpression();
+				if (this.currentToken.type != TokenType.COLON) {
+					throw new Exception("Missing colon from Conditional Statment.");
+				}
+
+				this.consume(TokenType.COLON);
+
+				if (lhs <= rhs) {
+					return 1;
+				} else {
+					return 0;
+				}
+			}
+
+			else if (this.currentToken.type == TokenType.GREATER_THAN_OR_EQUAL) {
+				this.consume(TokenType.GREATER_THAN_OR_EQUAL);
+				int lhs = value;
+				int rhs = this.evalExpression();
+				if (this.currentToken.type != TokenType.COLON) {
+					throw new Exception("Missing colon from Conditional Statment.");
+				}
+
+				this.consume(TokenType.COLON);
+
+				if (lhs >= rhs) {
+					return 1;
+				} else {
+					return 0;
+				}
+			}
+		}
+
+		if (this.currentToken.type == TokenType.NOT_EQUAL) {
+			this.consume(TokenType.NOT_EQUAL);
+			int lhs = value;
+			int rhs = this.evalExpression();
+			if (this.currentToken.type != TokenType.COLON) {
+				throw new Exception("Missing colon from Conditional Statment.");
+			}
+			this.consume(TokenType.COLON);
+
+			if (lhs != rhs) {
+				return 1;
+			} else {
+				return 0;
+			}
+		}
+
+		if (this.currentToken.type == TokenType.EQUAL) {
+			this.consume(TokenType.EQUAL);
+			int lhs = value;
+			int rhs = this.evalExpression();
+			if (this.currentToken.type != TokenType.COLON) {
+				throw new Exception("Missing colon from Conditional Statment.");
+			}
+			this.consume(TokenType.COLON);
+
+			if (lhs == rhs) {
+				return 1;
+			} else {
+				return 0;
+			}
+		}
+		return value;
+	}
+
+  public void evalLoop() throws Exception {
+    if (this.evalConditional() == 0) {
+		while (this.currentToken.type != TokenType.ENDWHILE) {
+  			this.consume(this.currentToken.type);
+  		}
+		isLoop = false;
+    } else {
+   		isLoop = true;
+   		this.evalStatementBlock();
+   	}
   }
-  
   
   public void evalAssignmentStatement() throws Exception {
 
     // An assignment has the form NAME := EXPRESSION
     String lhs = this.currentToken.value;
     this.consume(TokenType.NAME);
-    
+	if (this.currentToken.type != TokenType.ASSIGN) {
+		throw new Exception("Syntax error: missing : from assign.");
+	}
+
     this.consume(TokenType.ASSIGN);  // match the :=
-    
+
     int value = this.evalExpression();
     this.symbols.put(lhs, value); 
+    
   }
   
   
@@ -215,11 +311,31 @@ public class Interpreter {
     switch(this.currentToken.type) {
       
       // Add new cases here for each new statement type:
-      // INPUT, IF, WHILE, CALL, SUB, RETURN, FOR
-      
+      // INPUT, IF, WHILE, CALL, SUB, RETURN, FOR  
       case INPUT:
         this.evalInputStatement();
         break;
+        
+      case IF:
+  		this.consume(TokenType.IF);
+  		if (this.evalConditional() == 0) {
+  			while (this.currentToken.type != TokenType.ENDIF) {
+  				this.consume(this.currentToken.type);
+  			}
+  		} else {
+  			this.evalStatementBlock();
+  		}
+  		
+  		if (this.currentToken.type != TokenType.ENDIF) {
+  			throw new Exception("Missing ENDIF");
+  		}
+    	break;
+    	
+      case WHILE:
+    	temp = this.pc;
+    	this.consume(TokenType.WHILE);
+  		this.evalLoop();
+    	break;
       
       case NAME:
         this.evalAssignmentStatement();
@@ -232,18 +348,32 @@ public class Interpreter {
         this.evalPrintStatement();
         break;
         
+      case COMMENT:
+		this.consume(TokenType.COMMENT);
+    	break;
+    	
       // Cases corresponding to the end of blocks
       // Treated as empty
       case END:
         break;
         
       case ENDIF:
+    	this.consume(TokenType.ENDIF);
         break;
         
       case ENDWHILE:
+        if (isLoop == true) {
+     		this.pc = temp;
+       	    this.currentToken = this.program.get(this.pc);
+       	    this.evalStatement();
+       	    break;
+        }
+
+      	this.consume(TokenType.ENDWHILE);
         break;
         
       case ENDSUB:
+      	this.consume(TokenType.ENDSUB);
         break;
          
       // Unrecognized token error
@@ -257,18 +387,42 @@ public class Interpreter {
     // A program is at least one statement followed
     // by any number of optional statements separated by newlines
     this.evalStatement();
-    
     while (this.currentToken.type == TokenType.NEWLINE) {
       this.consume(TokenType.NEWLINE);
       this.evalStatement();
     }
   }
   
+  public void evalProgram() throws Exception {
+	  while (this.currentToken.type == TokenType.NEWLINE) {
+		  this.consume(TokenType.NEWLINE);
+	  }
+
+	  if (this.currentToken.type == TokenType.COMMENT) {
+		  this.consume(TokenType.COMMENT);
+	  }
+	  
+	  while (this.currentToken.type == TokenType.NEWLINE) {
+		  this.consume(TokenType.NEWLINE);
+	  }
+	  
+	  this.consume(TokenType.PROGRAM);
+
+	  this.consume(TokenType.NAME);
+	  
+	  this.consume(TokenType.COLON);
+	  
+	  while(this.currentToken.type != TokenType.END) {
+		  this.evalStatementBlock();
+	  }
+
+	  this.consume(TokenType.END);
+  }
   
   public static void main(String[] args) {
       
       try {
-        Interpreter interpreter = new Interpreter("Test/Basic/Arithmetic.a");
+        Interpreter interpreter = new Interpreter("src/Test/Basic/DivisibleBy7.a");
         interpreter.evalProgram();  // Start with evalProgram, which you'll need to write
       } catch (Exception e) {
         System.out.println(e);
